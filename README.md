@@ -2,6 +2,11 @@
 
 **Your own private entry point to Windscribe.**
 
+> [!NOTE]
+> This `custom` branch is a fork of [Windscribe/hydra](https://github.com/Windscribe/hydra) with extra improvements:
+> - **Auto-select best location:** concurrent ICMP ping (with TCP/443 fallback) + load-aware ranking via **`Best location (auto-ping)`** in `hydra setup`, `hydra up --best`, and `hydra lookup --ping`.
+> - **Terminal menu fix:** prevents `hydra setup` menus from erasing lines above the prompt on Arrow Up/Down.
+
 hydra turns a Linux server you control into a private way in to Windscribe. You share a small profile with the people you choose. Their Windscribe app connects to your server, and your server passes the encrypted traffic on to Windscribe, untouched.
 
 ```
@@ -59,17 +64,17 @@ Download the latest release for your server, check it, and install it:
 
 ```bash
 ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-curl -fsSLO https://github.com/Windscribe/hydra/releases/latest/download/hydra-linux-$ARCH
-curl -fsSLO https://github.com/Windscribe/hydra/releases/latest/download/SHA256SUMS
+curl -fsSLO https://github.com/Linuxmaster14/hydra/releases/latest/download/hydra-linux-$ARCH
+curl -fsSLO https://github.com/Linuxmaster14/hydra/releases/latest/download/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 sudo install -m 0755 hydra-linux-$ARCH /usr/local/bin/hydra
 ```
 
 - The builds are static, so they run on any Linux distribution, on x86_64 (`amd64`) or ARM64 (`arm64`).
 - `sha256sum` should print `hydra-linux-<arch>: OK`. Don't install it if it doesn't.
-- GitHub builds each release from its tagged source. To check that a binary was built there, run `gh attestation verify hydra-linux-$ARCH --repo Windscribe/hydra` (needs the [GitHub CLI](https://cli.github.com)).
+- GitHub builds each release from its tagged source. To check that a binary was built there, run `gh attestation verify hydra-linux-$ARCH --repo Linuxmaster14/hydra` (needs the [GitHub CLI](https://cli.github.com)).
 
-Every release is listed on the [Releases page](https://github.com/Windscribe/hydra/releases).
+Every release is listed on the [Releases page](https://github.com/Linuxmaster14/hydra/releases).
 
 <details>
 <summary>Or build it from source</summary>
@@ -77,7 +82,7 @@ Every release is listed on the [Releases page](https://github.com/Windscribe/hyd
 With a recent [Rust toolchain](https://rustup.rs):
 
 ```bash
-git clone https://github.com/Windscribe/hydra.git
+git clone -b custom https://github.com/Linuxmaster14/hydra.git
 cd hydra
 cargo build --release
 sudo install -m 0755 target/release/hydra /usr/local/bin/hydra
@@ -96,7 +101,7 @@ sudo hydra setup
 Setup checks the server, then walks you through four steps:
 
 1. **Pick an address** on the server, and a UDP port (443 by default).
-2. **Pick a Windscribe location**, then one of its datacenters. The least loaded comes first, or search by name.
+2. **Pick a Windscribe location** — choose **Best location (auto-ping)** to probe all datacenters for lowest latency and load, pick a country/city (least loaded first), or search by name.
 3. **Confirm.** hydra starts forwarding and writes the profile to share.
 4. **Keep it running.** Setup offers to install hydra's systemd units. Say yes: they restart forwarding after a reboot and follow Windscribe's changes every minute.
 
@@ -161,11 +166,16 @@ Prefer commands to the guided setup? These steps do the same.
 2. **Find a location and start forwarding.**
 
    ```bash
+   # Auto-select the fastest, lowest-load datacenter automatically:
+   hydra lookup --ping
+   sudo hydra up --best
+
+   # Or pick a specific city/country:
    hydra lookup Toronto
    sudo hydra up --location Toronto
    ```
 
-   hydra picks the least-loaded Toronto datacenter, starts forwarding, and writes `hydra.json` in the current directory.
+   `--best` probes usable datacenters concurrently (and can be combined with `--location`, e.g. `sudo hydra up --best --location Europe`), starts forwarding, and writes `hydra.json` in the current directory.
 
    On a cloud server whose public IP isn't on the machine itself (AWS, GCP, Azure, Oracle and others), add `--listen <public IP>`.
 
@@ -328,7 +338,7 @@ sudo hydra tune --apply --nic       # also change network card settings with eth
 | Command | What it does |
 | --- | --- |
 | `hydra setup` | Guided: add, remove and share entries, check the server, keep hydra running after a reboot. `hydra` on its own in a terminal starts it |
-| `hydra lookup <query>` | Search Windscribe datacenters by city, country, or name, with their load |
+| `hydra lookup [query]` | Search Windscribe datacenters by city, country, or name, with their load. Add `--ping` (or `--best`) to benchmark latency and rank fastest first |
 | `hydra up` | Add an entry (or replace the one on the same address and port), start forwarding, and write its profile |
 | `hydra apply` | Forward every saved entry again, for example at boot |
 | `hydra down` | Stop forwarding and keep the saved entries. `--entry IP:PORT` removes one entry and keeps the others running; `--forget` deletes them all |
@@ -343,6 +353,7 @@ sudo hydra tune --apply --nic       # also change network card settings with eth
 
 | Option | Meaning |
 | --- | --- |
+| `--best` | Auto-select the nearest low-load datacenter by probing latency concurrently (can be combined with `--location` to narrow the search) |
 | `--location <query>` | Use the least-loaded datacenter matching this city, country, or name in Windscribe's current locations. Datacenters that aren't taking new connections are skipped unless nothing else matches |
 | `--datacenter <hostname>` | Use a specific datacenter, by its WireGuard hostname (the one its WireGuard configs use) |
 | `--label <text>` | How the profile names the place (default: from Windscribe's locations) |
